@@ -22,6 +22,9 @@ public class MapsActivity extends FragmentActivity implements
         GoogleApiClient.OnConnectionFailedListener,
         LocationListener {
 
+    //The code to get my current location was taken from a teamtreehouse's blog
+    //http://blog.teamtreehouse.com/beginners-guide-location-android
+
     private GoogleMap mMap; // Might be null if Google Play services APK is not available.
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;

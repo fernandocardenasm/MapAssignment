@@ -1,10 +1,14 @@
 package com.example.usuario.mapassignment;
 
+import android.content.Context;
 import android.content.IntentSender;
+import android.content.SharedPreferences;
 import android.location.Location;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
+import android.widget.EditText;
+import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -17,10 +21,14 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+import java.util.HashSet;
+import java.util.Set;
+
 public class MapsActivity extends FragmentActivity implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
-        LocationListener {
+        LocationListener,
+        GoogleMap.OnMapLongClickListener{
 
     //The code to get my current location was taken from a teamtreehouse's blog
     //http://blog.teamtreehouse.com/beginners-guide-location-android
@@ -28,6 +36,7 @@ public class MapsActivity extends FragmentActivity implements
     private GoogleMap mMap; // Might be null if Google Play services APK is not available.
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
+    private EditText mTextContent;
     public static final String TAG = FragmentActivity.class.getSimpleName();
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
 
@@ -38,6 +47,8 @@ public class MapsActivity extends FragmentActivity implements
         setUpMapIfNeeded();
 
         //Initialize our client
+
+        mTextContent = (EditText) findViewById(R.id.textContent);
 
         mGoogleApiClient = new GoogleApiClient.Builder(this)
                 .addConnectionCallbacks(this)
@@ -50,6 +61,22 @@ public class MapsActivity extends FragmentActivity implements
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
                 .setInterval(10 * 1000)        // 10 seconds, in milliseconds
                 .setFastestInterval(1 * 1000); // 1 second, in milliseconds
+
+        //Listener for long click on map
+
+        mMap.setOnMapLongClickListener(this);
+
+//        Context context = (Activity) this;
+//        SharedPreferences sharedPreferences = context.getSharedPreferences(getString(R.string.preference_file_key), Context.MODE_PRIVATE);
+
+        //Clean the old Preferences
+
+        SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.preference_file_key),
+                Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.clear();
+        editor.apply();
+
     }
 
     @Override
@@ -155,5 +182,36 @@ public class MapsActivity extends FragmentActivity implements
     @Override
     public void onLocationChanged(Location location) {
         handleNewLocation(location);
+    }
+
+    @Override
+    public void onMapLongClick(LatLng latLng) {
+
+        String content = mTextContent.getText().toString();
+        double lat = latLng.latitude;
+        double lng = latLng.longitude;
+
+        MarkerOptions options = new MarkerOptions()
+                .position(latLng)
+                .title(content);
+        mMap.addMarker(options);
+
+        //SharedPreferences
+
+        //Taken from http://deepak-sharma.net/2013/11/20/how-to-get-set-values-in-sharedpreferences-in-android/
+
+        SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.preference_file_key),
+                Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        Set markers = new HashSet();
+        //markers.add(latLng);
+        markers.add(lat);
+        markers.add(lng);
+        markers.add(content);
+        editor.putStringSet("markers",markers);
+        Boolean flag = editor.commit();
+        if (flag){
+            Toast.makeText(getApplicationContext(), "The Marker was saved successfully!",Toast.LENGTH_SHORT).show();
+        }
     }
 }

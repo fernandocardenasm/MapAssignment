@@ -3,6 +3,7 @@ package com.example.usuario.mapassignment;
 import android.content.Context;
 import android.content.IntentSender;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.location.Location;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
@@ -24,6 +25,7 @@ import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.maps.android.SphericalUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -163,6 +165,7 @@ public class MapsActivity extends FragmentActivity implements
         else {
             handleNewLocation(location);
         }
+
     }
 
     @Override
@@ -199,7 +202,8 @@ public class MapsActivity extends FragmentActivity implements
 
         CircleOptions circleOptions = new CircleOptions()
                 .center(latLng)
-                .radius(1000); //meters
+                .radius(700) //meters
+                .strokeColor(Color.RED);
 
         Circle circle = mMap.addCircle(circleOptions);
 
@@ -232,33 +236,36 @@ public class MapsActivity extends FragmentActivity implements
     public void onMapLongClick(LatLng latLng) {
 
         String content = mTextContent.getText().toString();
-        double lat = latLng.latitude;
-        double lng = latLng.longitude;
+        if (!content.trim().equals("")) {
 
-        MarkerOptions options = new MarkerOptions()
-                .position(latLng)
-                .title(content);
-        mMap.addMarker(options);
-        mMarkerOptions.add(options);
-        //Set the Circles for each marker
+            double lat = latLng.latitude;
+            double lng = latLng.longitude;
 
-        CircleOptions circleOptions = new CircleOptions()
-                .center(latLng)
-                .radius(1000); //meters
+            MarkerOptions options = new MarkerOptions()
+                    .position(latLng)
+                    .title(content);
+            mMap.addMarker(options);
+            mMarkerOptions.add(options);
+            //Set the Circles for each marker
 
-        Circle circle = mMap.addCircle(circleOptions);
+            CircleOptions circleOptions = new CircleOptions()
+                    .center(latLng)
+                    .radius(0)      //meters
+                    .strokeColor(Color.RED);
 
-        mCircle.add(circle);
-        //SharedPreferences
+            Circle circle = mMap.addCircle(circleOptions);
 
-        //Taken from http://deepak-sharma.net/2013/11/20/how-to-get-set-values-in-sharedpreferences-in-android/
+            mCircle.add(circle);
+            //SharedPreferences
 
-        SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.preference_file_key),
-                Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putString("lat",lat+"");
-        editor.putString("lng",lng+"");
-        editor.putString("content",content);
+            //Taken from http://deepak-sharma.net/2013/11/20/how-to-get-set-values-in-sharedpreferences-in-android/
+
+            SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.preference_file_key),
+                    Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putString("lat", lat + "");
+            editor.putString("lng", lng + "");
+            editor.putString("content", content);
 
 //        Set markers = new HashSet();
 //        //markers.add(latLng);
@@ -266,9 +273,13 @@ public class MapsActivity extends FragmentActivity implements
 //        markers.add(lng);
 //        markers.add(content);
 //        editor.putStringSet("markers",markers);
-        Boolean flag = editor.commit();
-        if (flag){
-            Toast.makeText(getApplicationContext(), "The Marker was saved successfully!",Toast.LENGTH_SHORT).show();
+            Boolean flag = editor.commit();
+            if (flag) {
+                Toast.makeText(getApplicationContext(), "The Marker was saved successfully!", Toast.LENGTH_SHORT).show();
+            }
+        }
+        else{
+            Toast.makeText(MapsActivity.this, "The content can't be blank.",Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -337,8 +348,52 @@ public class MapsActivity extends FragmentActivity implements
                 }
             }
             else{
+
+                double distance;
+                int divValue = 8;
+
+                //Spherical Util: https://developers.google.com/maps/documentation/android/utility/
+
+                //1
+                if (markerLat > highLat && markerLng < lowLng){
+                    distance = SphericalUtil.computeDistanceBetween(marker.getPosition(), new LatLng(highLat-(highLat-lowLat)/divValue,lowLng+(highLng-lowLng)/divValue));
+                }
+                //2
+                else if (markerLat > highLat && (markerLng >= lowLng && markerLng <= highLng)){
+                    distance = SphericalUtil.computeDistanceBetween(marker.getPosition(), new LatLng(highLat-(highLat-lowLat)/divValue,markerLng));
+                }
+                //3
+                else if (markerLat > highLat && markerLng > highLng){
+                    distance = SphericalUtil.computeDistanceBetween(marker.getPosition(), new LatLng(highLat-(highLat-lowLat)/divValue,highLng-(highLng-lowLng)/divValue));
+                }
+                //4
+                else if ((markerLat <= highLat && markerLat >= lowLat) && markerLng < lowLng ){
+                    distance = SphericalUtil.computeDistanceBetween(marker.getPosition(), new LatLng(markerLat,lowLng+(highLng-lowLng)/divValue));
+                }
+                //5
+                else if ((markerLat <= highLat && markerLat >= lowLat) && markerLng > highLng){
+                    distance = SphericalUtil.computeDistanceBetween(marker.getPosition(), new LatLng(markerLat,highLng-(highLng-lowLng)/divValue));
+                }
+                //6
+                else if (markerLat < lowLat && markerLng < lowLng){
+                    distance = SphericalUtil.computeDistanceBetween(marker.getPosition(), new LatLng(lowLat+(highLat-lowLat)/divValue,lowLng+(highLng-lowLng)/divValue));
+                }
+                //7
+                else if (markerLat < lowLat && (markerLng >= lowLng && markerLng <= highLng)){
+                    distance = SphericalUtil.computeDistanceBetween(marker.getPosition(), new LatLng(lowLat+(highLat-lowLat)/divValue,markerLng));
+                }
+                //8
+                else if (markerLat < lowLat && markerLng > highLng){
+                    distance = SphericalUtil.computeDistanceBetween(marker.getPosition(), new LatLng(lowLat+(highLat-lowLat)/divValue,highLng-(highLng-lowLng)/divValue));
+                }
+                else{
+                    distance = SphericalUtil.computeDistanceBetween(marker.getPosition(), new LatLng(highLat-(highLat-lowLat)/divValue,highLng-(highLng-lowLng)/divValue));
+                }
+
                 if (mapCircle != null){
-                    mapCircle.setRadius(1000);
+                    Log.d(TAG, "Radius Before :" + mapCircle.getRadius());
+                    mapCircle.setRadius(distance);
+                    Log.d(TAG, "Radius" + mapCircle.getRadius());
                 }
             }
         }

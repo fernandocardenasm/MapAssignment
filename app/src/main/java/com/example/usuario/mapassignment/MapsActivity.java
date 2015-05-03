@@ -18,17 +18,22 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.CameraPosition;
+import com.google.android.gms.maps.model.Circle;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MarkerOptions;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MapsActivity extends FragmentActivity implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
         LocationListener,
-        GoogleMap.OnMapLongClickListener{
+        GoogleMap.OnMapLongClickListener,
+        GoogleMap.OnCameraChangeListener{
 
     //The code to get my current location was taken from a teamtreehouse's blog
     //http://blog.teamtreehouse.com/beginners-guide-location-android
@@ -37,6 +42,9 @@ public class MapsActivity extends FragmentActivity implements
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
     private EditText mTextContent;
+    private LatLngBounds mLatLngBounds;
+    private List<MarkerOptions> mMarkerOptions;
+    private List<Circle> mCircle;
     public static final String TAG = FragmentActivity.class.getSimpleName();
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
 
@@ -44,6 +52,11 @@ public class MapsActivity extends FragmentActivity implements
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
+        //Initialize List
+
+        mMarkerOptions = new ArrayList<MarkerOptions>();
+        mCircle = new ArrayList<Circle>();
+
         setUpMapIfNeeded();
 
         //Initialize our client
@@ -63,11 +76,12 @@ public class MapsActivity extends FragmentActivity implements
                 .setFastestInterval(1 * 1000); // 1 second, in milliseconds
 
         //Listener for long click on map
-
         mMap.setOnMapLongClickListener(this);
 
 //        Context context = (Activity) this;
 //        SharedPreferences sharedPreferences = context.getSharedPreferences(getString(R.string.preference_file_key), Context.MODE_PRIVATE);
+
+
 
         //Clean the old Preferences
 
@@ -76,6 +90,10 @@ public class MapsActivity extends FragmentActivity implements
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.clear();
         editor.apply();
+
+        //Set the onMoveCameraListener
+
+        mMap.setOnCameraChangeListener(this);
 
     }
 
@@ -176,7 +194,33 @@ public class MapsActivity extends FragmentActivity implements
                 .position(latLng)
                 .title("I am here!");
         mMap.addMarker(options);
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
+        mMarkerOptions.add(options);
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 14.0f));
+
+        CircleOptions circleOptions = new CircleOptions()
+                .center(latLng)
+                .radius(1000); //meters
+
+        Circle circle = mMap.addCircle(circleOptions);
+
+        mCircle.add(circle);
+
+        //Save the first marker
+        SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.preference_file_key),
+                Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+
+        editor.putString("lat",currentLatitude+"");
+        editor.putString("lng",currentLongitude+"");
+        editor.putString("content","I am here!");
+
+//        Set markers = new HashSet();
+        //markers.add(latLng);
+//        markers.add(currentLatitude);
+//        markers.add(currentLongitude);
+//        markers.add("I am here!");
+//        editor.putStringSet("markers",markers);
+        editor.apply();
     }
 
     @Override
@@ -195,7 +239,16 @@ public class MapsActivity extends FragmentActivity implements
                 .position(latLng)
                 .title(content);
         mMap.addMarker(options);
+        mMarkerOptions.add(options);
+        //Set the Circles for each marker
 
+        CircleOptions circleOptions = new CircleOptions()
+                .center(latLng)
+                .radius(1000); //meters
+
+        Circle circle = mMap.addCircle(circleOptions);
+
+        mCircle.add(circle);
         //SharedPreferences
 
         //Taken from http://deepak-sharma.net/2013/11/20/how-to-get-set-values-in-sharedpreferences-in-android/
@@ -203,15 +256,91 @@ public class MapsActivity extends FragmentActivity implements
         SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.preference_file_key),
                 Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
-        Set markers = new HashSet();
-        //markers.add(latLng);
-        markers.add(lat);
-        markers.add(lng);
-        markers.add(content);
-        editor.putStringSet("markers",markers);
+        editor.putString("lat",lat+"");
+        editor.putString("lng",lng+"");
+        editor.putString("content",content);
+
+//        Set markers = new HashSet();
+//        //markers.add(latLng);
+//        markers.add(lat);
+//        markers.add(lng);
+//        markers.add(content);
+//        editor.putStringSet("markers",markers);
         Boolean flag = editor.commit();
         if (flag){
             Toast.makeText(getApplicationContext(), "The Marker was saved successfully!",Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void onCameraChange(CameraPosition cameraPosition) {
+        mLatLngBounds = mMap.getProjection().getVisibleRegion().latLngBounds;
+        updateCircles(mLatLngBounds);
+    }
+
+    public void updateCircles(LatLngBounds latLngBounds){
+
+        //Taken from http://stackoverflow.com/questions/17735812/how-can-i-get-the-visible-markers-in-google-maps-v2-in-android
+        //Get the values of the borders
+
+        double lowLat;
+        double lowLng;
+        double highLat;
+        double highLng;
+
+        if (latLngBounds.northeast.latitude < latLngBounds.southwest.latitude)
+        {
+            lowLat = latLngBounds.northeast.latitude;
+            highLat = latLngBounds.southwest.latitude;
+        }
+        else
+        {
+            highLat = latLngBounds.northeast.latitude;
+            lowLat = latLngBounds.southwest.latitude;
+        }
+        if (latLngBounds.northeast.longitude < latLngBounds.southwest.longitude)
+        {
+            lowLng = latLngBounds.northeast.longitude;
+            highLng = latLngBounds.southwest.longitude;
+        }
+        else
+        {
+            highLng = latLngBounds.northeast.longitude;
+            lowLng = latLngBounds.southwest.longitude;
+        }
+
+        for (int i = 0; i < mMarkerOptions.size(); i++){
+            MarkerOptions marker = mMarkerOptions.get(i);
+            Double markerLat = marker.getPosition().latitude;
+            Double markerLng = marker.getPosition().longitude;
+
+            Circle mapCircle = mCircle.get(i);
+
+//            Circle mapCircle;
+//            CircleOptions circleOptions = new CircleOptions()
+//                    .center(marker.getPosition())
+//                    .radius(1000); //meters
+//
+//            mapCircle = mMap.addCircle(circleOptions);
+
+            if (markerLat <= highLat && markerLat >= lowLat && markerLng <= highLng && markerLng >= lowLng){
+
+                Log.d(TAG, "Lat: "+ markerLat + " Lng: "+ markerLng);
+
+                //Erase the circle around the marker
+
+
+                if (mapCircle != null){
+                    Log.d(TAG, "Radius Before :" + mapCircle.getRadius());
+                    mapCircle.setRadius(0);
+                    Log.d(TAG, "Radius" + mapCircle.getRadius());
+                }
+            }
+            else{
+                if (mapCircle != null){
+                    mapCircle.setRadius(1000);
+                }
+            }
         }
     }
 }
